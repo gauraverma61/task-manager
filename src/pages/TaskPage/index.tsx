@@ -42,8 +42,8 @@ import {
   toggleComplete,
 } from '@/store/tasksSlice' // Import the Redux actions
 
-type StatusFilter = 'all' | 'pending' | 'completed'
-type SortDirection = 'asc' | 'desc'
+// type StatusFilter = 'all' | 'pending' | 'completed'
+// type SortDirection = 'asc' | 'desc'
 
 interface Task {
   id: string
