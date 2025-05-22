@@ -33,6 +33,14 @@ import {
   CheckCircle,
 } from 'lucide-react'
 import moment from 'moment'
+import { useDispatch, useSelector } from 'react-redux'
+import type { RootState } from '@/store'
+import {
+  addTask as addTaskAction,
+  deleteTask,
+  editTask as editTaskAction,
+  toggleComplete,
+} from '@/store/tasksSlice' // Import the Redux actions
 
 type StatusFilter = 'all' | 'pending' | 'completed'
 type SortDirection = 'asc' | 'desc'
@@ -44,15 +52,20 @@ interface Task {
   completed: boolean
   createdAt: string
 }
+
 const TasksPage = () => {
-  const [isAddingTask, setIsAddingTask] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [sortDirection, setSortDirection] = useState('asc')
   const [statusFilter, setStatusFilter] = useState('all')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const tasksPerPage = 5
+
+  const dispatch = useDispatch()
+  const tasks = useSelector((state: RootState) => state.tasks.tasks)
 
   const filterTasks = (tasks: Task[], statusFilter: string): Task[] => {
     switch (statusFilter) {
@@ -74,92 +87,9 @@ const TasksPage = () => {
     })
   }
 
-  const tasks: Task[] = [
-    {
-      id: '1',
-      title: 'Buy groceries',
-      description: 'Milk, eggs, and bread',
-      completed: false,
-      createdAt: '2025-05-22T09:00:00Z',
-    },
-    {
-      id: '2',
-      title: 'Finish project report',
-      completed: true,
-      createdAt: '2025-05-21T14:30:00Z',
-    },
-    {
-      id: '3',
-      title: 'Book dentist appointment',
-      description: 'Call Dr. Sharma’s clinic',
-      completed: false,
-      createdAt: '2025-05-20T10:15:00Z',
-    },
-    {
-      id: '4',
-      title: 'Workout',
-      description: 'Leg day at the gym',
-      completed: true,
-      createdAt: '2025-05-19T07:45:00Z',
-    },
-    {
-      id: '5',
-      title: 'Read a book',
-      description: 'Continue reading "Atomic Habits"',
-      completed: false,
-      createdAt: '2025-05-18T20:00:00Z',
-    },
-    {
-      id: '6',
-      title: 'Water plants',
-      completed: true,
-      createdAt: '2025-05-18T07:00:00Z',
-    },
-    {
-      id: '7',
-      title: 'Clean the house',
-      description: 'Living room and kitchen',
-      completed: false,
-      createdAt: '2025-05-17T15:00:00Z',
-    },
-    {
-      id: '8',
-      title: 'Reply to emails',
-      completed: true,
-      createdAt: '2025-05-17T10:30:00Z',
-    },
-    {
-      id: '9',
-      title: 'Prepare dinner',
-      description: 'Cook pasta and salad',
-      completed: false,
-      createdAt: '2025-05-16T18:00:00Z',
-    },
-    {
-      id: '10',
-      title: 'Meditation',
-      completed: true,
-      createdAt: '2025-05-16T06:30:00Z',
-    },
-    {
-      id: '11',
-      title: 'Write blog post',
-      description: 'Topic: Benefits of TypeScript',
-      completed: false,
-      createdAt: '2025-05-15T13:45:00Z',
-    },
-    {
-      id: '12',
-      title: 'Fix bug in login page',
-      completed: true,
-      createdAt: '2025-05-15T11:00:00Z',
-    },
-  ]
-
   const filteredTasks = filterTasks(tasks, statusFilter)
   const sortedTasks = sortTasks(filteredTasks)
 
-  // Pagination
   const indexOfLastTask = currentPage * tasksPerPage
   const indexOfFirstTask = indexOfLastTask - tasksPerPage
   const currentTasks = sortedTasks.slice(indexOfFirstTask, indexOfLastTask)
@@ -186,7 +116,55 @@ const TasksPage = () => {
     setCurrentPage(pageNumber)
   }
 
-  const addTask = () => {}
+  const handleAddTask = () => {
+    setIsEditing(false)
+    setEditingTaskId(null)
+    setTitle('')
+    setDescription('')
+    setIsDialogOpen(true)
+  }
+
+  const handleEditTask = (task: Task) => {
+    setIsEditing(true)
+    setEditingTaskId(task.id)
+    setTitle(task.title)
+    setDescription(task.description || '')
+    setIsDialogOpen(true)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!title.trim()) {
+      return
+    }
+
+    if (isEditing && editingTaskId) {
+      dispatch(
+        editTaskAction({
+          id: editingTaskId,
+          title: title.trim(),
+          description: description.trim() || undefined,
+        })
+      )
+    } else {
+      const newTask: Task = {
+        id: Date.now().toString(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        completed: false,
+        createdAt: new Date().toISOString(),
+      }
+      dispatch(addTaskAction(newTask))
+    }
+
+    // Reset form and close dialog
+    setTitle('')
+    setDescription('')
+    setIsEditing(false)
+    setEditingTaskId(null)
+    setIsDialogOpen(false)
+  }
 
   return (
     <div>
@@ -198,18 +176,20 @@ const TasksPage = () => {
           </p>
         </div>
 
-        <Dialog open={isAddingTask} onOpenChange={setIsAddingTask}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="mt-4 sm:mt-0">
+            <Button className="mt-4 sm:mt-0" onClick={handleAddTask}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Task
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add New Task</DialogTitle>
+              <DialogTitle>
+                {isEditing ? 'Edit Task' : 'Add New Task'}
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={addTask} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">
                   Title <span className="text-destructive">*</span>
@@ -221,6 +201,7 @@ const TasksPage = () => {
                     setTitle(e.target.value)
                   }}
                   placeholder="Enter task title"
+                  required
                 />
               </div>
 
@@ -301,6 +282,7 @@ const TasksPage = () => {
         <div className="space-y-4">
           {currentTasks.map((task) => (
             <Card
+              key={task.id}
               className={`task-card animate-fade-in ${task.completed ? 'border-l-4 border-l-primary/40' : ''}`}
             >
               <CardHeader className="pb-2">
@@ -308,7 +290,9 @@ const TasksPage = () => {
                   <div className="flex items-center gap-2">
                     <Checkbox
                       checked={task.completed}
-                      //  onCheckedChange={handleToggleStatus}
+                      onCheckedChange={() => {
+                        dispatch(toggleComplete(task.id))
+                      }}
                       className="mt-1"
                     />
                     <CardTitle
@@ -340,53 +324,62 @@ const TasksPage = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => {
+                    setIsEditing(true)
+                    handleEditTask(task)
+                  }}
                 >
                   <Edit size={16} className="mr-1" />
                   Edit
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => {}}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    dispatch(deleteTask(task.id))
+                  }}
+                >
                   <Trash size={16} className="mr-1" />
                   Delete
                 </Button>
               </CardFooter>
             </Card>
           ))}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-8 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
 
-          {/* Pagination */}
-          <div className="flex justify-center mt-8 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
+              <div className="flex gap-1">
+                {pageNumbers.map((number) => (
+                  <Button
+                    key={number}
+                    variant={currentPage === number ? 'default' : 'outline'}
+                    size="sm"
+                    className="min-w-[2.5rem]"
+                    onClick={() => goToPage(number)}
+                  >
+                    {number}
+                  </Button>
+                ))}
+              </div>
 
-            <div className="flex gap-1">
-              {pageNumbers.map((number) => (
-                <Button
-                  key={number}
-                  variant={currentPage === number ? 'default' : 'outline'}
-                  size="sm"
-                  className="min-w-[2.5rem]"
-                  onClick={() => goToPage(number)}
-                >
-                  {number}
-                </Button>
-              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
-          </div>
+          )}
         </div>
       )}
     </div>
